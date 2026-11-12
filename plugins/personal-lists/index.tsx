@@ -118,24 +118,6 @@ export const apply: PluginModule["apply"] = (ctx) => {
   for (const kind of ["saved", "todo"] as const) {
     const title = kind === "saved" ? "Saved" : "To-dos";
     const pageId = kind === "saved" ? "saved" : "todos";
-    function SavedMarker({
-      list,
-      eventId,
-    }: {
-      list: ReturnType<typeof createStore>;
-      eventId: string;
-    }) {
-      const state = React.useSyncExternalStore(
-        list.subscribe,
-        list.snapshot,
-        list.snapshot,
-      );
-      return state.items.some(
-        (item) => item.kind === kind && item.target?.eventId === eventId,
-      ) ? (
-        <span role="status">{kind === "saved" ? "Saved" : "In To-dos"}</span>
-      ) : null;
-    }
     function List({ list }: { list: ReturnType<typeof createStore> }) {
       const state = React.useSyncExternalStore(
         list.subscribe,
@@ -550,17 +532,19 @@ export const apply: PluginModule["apply"] = (ctx) => {
         );
       },
       matches: (message) => /^[a-f0-9]{64}$/.test(message.id),
-      marker: function Marker({ message, session }) {
-        const list = currentStore();
-        return list && ctx.relay.snapshot().session === session ? (
-          <SavedMarker list={list} eventId={message.id} />
-        ) : null;
-      },
       component: function Action({ message, session, close }) {
         const [error, setError] = React.useState("");
         const [busy, setBusy] = React.useState(true);
         const [saved, setSaved] = React.useState(false);
         const started = React.useRef(false);
+        const notice = React.useRef<HTMLDivElement>(null);
+        React.useLayoutEffect(() => {
+          const element = notice.current;
+          element?.showPopover();
+          return () => {
+            if (element?.matches(":popover-open")) element.hidePopover();
+          };
+        }, []);
         const save = () => {
           const list = currentStore();
           if (!list || ctx.relay.snapshot().session !== session) {
@@ -595,25 +579,58 @@ export const apply: PluginModule["apply"] = (ctx) => {
           return () => clearTimeout(timer);
         }, [saved, close]);
         return (
-          <>
-            {busy && <p role="status">Saving…</p>}
-            {saved && (
-              <p role="status">
-                {kind === "saved" ? "Saved" : "Added to To-dos"}
-              </p>
-            )}
+          <div
+            ref={notice}
+            popover="manual"
+            role={error ? "alert" : "status"}
+            data-buzz-ui=""
+            data-type={error ? "error" : saved ? "success" : "info"}
+            className="buzz-toast floating-surface"
+            style={{
+              position: "fixed",
+              inset: "var(--space-6) var(--space-6) auto auto",
+              margin: 0,
+              width: "min(22rem, calc(100vw - 2 * var(--space-6)))",
+            }}
+          >
+            <div className="buzz-toast-heading">
+              <div className="buzz-toast-message">
+                <div className="buzz-toast-title text-label-sm">
+                  {error
+                    ? "Could not save"
+                    : busy
+                      ? "Saving…"
+                      : kind === "saved"
+                        ? "Saved"
+                        : "Added to To-dos"}
+                </div>
+                {error && <p className="text-body-sm">{error}</p>}
+              </div>
+              <div className="buzz-toast-dismiss">
+                <Button
+                  data-variant="ghost"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    close();
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
             {error && (
-              <button
-                type="button"
-                className="buzz-button"
-                disabled={busy}
-                onClick={save}
-              >
-                Try again
-              </button>
+              <div className="buzz-toast-actions">
+                <Button
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    save();
+                  }}
+                >
+                  Try again
+                </Button>
+              </div>
             )}
-            {error && <span role="alert">{error}</span>}
-          </>
+          </div>
         );
       },
     });

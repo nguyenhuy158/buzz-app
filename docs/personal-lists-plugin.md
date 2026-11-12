@@ -43,4 +43,4 @@ In stock Buzz, create a task, refresh, restart, and check it remains. Save a mes
 
 Hover over a message to see **Save for later** and **Add to To-dos**. Click the bookmark or check icon once to save it without leaving the chat. If the save fails, use **Try again**.
 
-The message shows Saving while the request runs, then Saved or In To-dos after sync confirms it. A failed save shows an error and Try again.
+A toast shows Saving while the request runs, then Saved or Added to To-dos after sync confirms it. It closes after three seconds. A failed save keeps the error and Try again visible. The chat layout does not move.
