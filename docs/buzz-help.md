@@ -12,6 +12,8 @@ The custom build syncs these lists for one account across devices. Mac reminders
 can run after Quit, using the last sync on that Mac. A closed app does not get
 new changes from another device. See [Personal lists](personal-lists.md) for setup.
 
+The optional **Personal Lists** plugin also adds Saved and To-dos to stock Buzz. It uses the same D1 data. Its Mac reminders need a separate helper; turn them off before removing the plugin. See [plugin setup](personal-lists-plugin.md).
+
 Buzz is an open-source app for thinking, asking questions, and getting work done
 with agents, alone or with other people. Start with a real task: work through an
 idea, draft something, answer a question, or make a plan. Customizing an agent is

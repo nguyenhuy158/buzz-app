@@ -1,4 +1,5 @@
 import { verifyEvent } from "nostr-tools/pure";
+import { schnorr } from "@noble/curves/secp256k1.js";
 
 const hex = /^[a-f0-9]{64}$/;
 const idPattern = /^[a-zA-Z0-9_-]{1,100}$/;
@@ -52,7 +53,6 @@ async function authorized(request, owner, body) {
         : undefined;
     };
     if (
-      event.pubkey !== owner ||
       event.kind !== 27235 ||
       event.content !== "" ||
       !Number.isSafeInteger(event.created_at) ||
@@ -62,6 +62,29 @@ async function authorized(request, owner, body) {
       tag("method") !== request.method
     )
       return false;
+    if (event.pubkey !== owner) {
+      const proofs = event.tags.filter((entry) => entry[0] === "auth");
+      if (proofs.length !== 1) return false;
+      const proof = proofs[0];
+      if (
+        proof.length !== 4 ||
+        proof[1] !== owner ||
+        proof[2] !== "" ||
+        !/^[a-f0-9]{128}$/.test(proof[3])
+      )
+        return false;
+      const digest = new Uint8Array(
+        await crypto.subtle.digest(
+          "SHA-256",
+          encoder.encode(`nostr:agent-auth:${event.pubkey}:`),
+        ),
+      );
+      const bytes = (value) =>
+        Uint8Array.from(value.match(/../g), (byte) =>
+          Number.parseInt(byte, 16),
+        );
+      if (!schnorr.verify(bytes(proof[3]), digest, bytes(owner))) return false;
+    }
     if (request.method === "POST") {
       const digest = await crypto.subtle.digest(
         "SHA-256",
