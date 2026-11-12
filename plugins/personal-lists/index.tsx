@@ -12,6 +12,10 @@ import {
   type PersonalItem,
 } from "../../src/bundled/personal-lists/model";
 import { createRequest } from "./auth.ts";
+import {
+  bookmarkIconSvg,
+  todoIconSvg,
+} from "../../src/shared/design-system/icons/svg";
 
 declare const PERSONAL_SYNC_URL: string;
 export const inject = [
@@ -511,66 +515,88 @@ export const apply: PluginModule["apply"] = (ctx) => {
     ctx.conversation.registerMessageAction({
       id: kind,
       title: kind === "saved" ? "Save for later" : "Add to To-dos",
-      placement: "menu",
+      placement: "toolbar",
+      icon: function ActionIcon() {
+        return (
+          <span
+            aria-hidden="true"
+            style={{
+              display: "inline-block",
+              width: "1rem",
+              height: "1rem",
+              backgroundColor: "currentColor",
+              mask: `url("data:image/svg+xml,${encodeURIComponent(kind === "saved" ? bookmarkIconSvg : todoIconSvg)}") center / contain no-repeat`,
+            }}
+          />
+        );
+      },
       matches: (message) => /^[a-f0-9]{64}$/.test(message.id),
-      component: function Action({ message, session }) {
+      component: function Action({ message, session, close }) {
         const [error, setError] = React.useState("");
         const [busy, setBusy] = React.useState(false);
+        const started = React.useRef(false);
+        const save = () => {
+          const list = currentStore();
+          if (!list || ctx.relay.snapshot().session !== session) {
+            setError("Connect before saving.");
+            return;
+          }
+          setBusy(true);
+          setError("");
+          void (async () => {
+            if (!list.snapshot().loaded) await list.refresh();
+            const existing = list
+              .snapshot()
+              .items.find((item) => item.target?.eventId === message.id);
+            if (existing?.kind !== kind)
+              await list.save(
+                existing
+                  ? { ...existing, kind, due: null, done: false }
+                  : {
+                      ...newItem(
+                        kind,
+                        message.content.trim().slice(0, 1000) || "Saved file",
+                      ),
+                      target: {
+                        eventId: message.id,
+                        channelId: message.channelId,
+                        authorPubkey: message.authorId,
+                      },
+                    },
+              );
+            const connection = ctx.relay.snapshot();
+            const scope = connection.scope && splitPartition(connection.scope);
+            if (scope)
+              await ctx.navigation.open({
+                version: 1,
+                kind: "plugin",
+                pluginId: "personal.lists",
+                pageId,
+                scope,
+              });
+            close();
+          })()
+            .catch((error) => setError(String(error)))
+            .finally(() => setBusy(false));
+        };
+        React.useEffect(() => {
+          if (started.current) return;
+          started.current = true;
+          save();
+        }, []);
         return (
           <>
-            <button
-              type="button"
-              role="menuitem"
-              className="buzz-menu-item"
-              disabled={busy}
-              onClick={() => {
-                const list = currentStore();
-                if (!list || ctx.relay.snapshot().session !== session) {
-                  setError("Connect before saving.");
-                  return;
-                }
-                setBusy(true);
-                setError("");
-                void (async () => {
-                  if (!list.snapshot().loaded) await list.refresh();
-                  const existing = list
-                    .snapshot()
-                    .items.find((item) => item.target?.eventId === message.id);
-                  if (existing?.kind !== kind)
-                    await list.save(
-                      existing
-                        ? { ...existing, kind, due: null, done: false }
-                        : {
-                            ...newItem(
-                              kind,
-                              message.content.trim().slice(0, 1000) ||
-                                "Saved file",
-                            ),
-                            target: {
-                              eventId: message.id,
-                              channelId: message.channelId,
-                              authorPubkey: message.authorId,
-                            },
-                          },
-                    );
-                  const connection = ctx.relay.snapshot();
-                  const scope =
-                    connection.scope && splitPartition(connection.scope);
-                  if (scope)
-                    await ctx.navigation.open({
-                      version: 1,
-                      kind: "plugin",
-                      pluginId: "personal.lists",
-                      pageId,
-                      scope,
-                    });
-                })()
-                  .catch((error) => setError(String(error)))
-                  .finally(() => setBusy(false));
-              }}
-            >
-              {kind === "saved" ? "Save for later" : "Add to To-dos"}
-            </button>
+            {busy && <p role="status">Saving…</p>}
+            {error && (
+              <button
+                type="button"
+                className="buzz-button"
+                disabled={busy}
+                onClick={save}
+              >
+                Try again
+              </button>
+            )}
             {error && <span role="alert">{error}</span>}
           </>
         );

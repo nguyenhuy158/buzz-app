@@ -1433,3 +1433,5 @@ In **Workflows**, an archived channel’s group says **Archived**, as do its wor
 Desktop builds save a small local trace when a draft conflict or save failure
 occurs. It contains operation metadata, with no draft text or secrets. See
 [draft diagnostics](draft-diagnostics.md) for the file location and collection steps.
+
+The optional Personal Lists plugin adds Save for later and Add to To-dos buttons to the message hover toolbar. Click once to save the message and open the list.

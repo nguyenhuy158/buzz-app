@@ -40,3 +40,5 @@ python3 -m unittest discover -s plugins/personal-lists -p 'test_*.py'
 ```
 
 In stock Buzz, create a task, refresh, restart, and check it remains. Save a message and open its source. Test both themes and keyboard use. Test sync on a second device. Set a reminder two minutes ahead, quit Buzz, and check for a banner. Keep these live checks separate from fixture tests.
+
+Hover over a message to see **Save for later** and **Add to To-dos**. Click the bookmark or check icon once to save it and open the list. If the save fails, use **Try again**.

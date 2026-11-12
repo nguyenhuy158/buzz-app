@@ -1,6 +1,8 @@
 import "../../src/shared/styles/globals.css";
 import * as React from "react";
 import { createRoot } from "react-dom/client";
+import type { MessageAction } from "../../src/plugins/author";
+import { IconButton } from "../../src/shared/design-system/ui/IconButton";
 import { newItem } from "../../src/bundled/personal-lists/model";
 
 const params = new URLSearchParams(location.search);
@@ -22,13 +24,17 @@ let items = [
 ];
 const pages: { id: string; title: string; component: React.ComponentType }[] =
   [];
+const actions: MessageAction[] = [];
+let writes = 0;
 const plugin = await import("../../dist-plugins/personal-lists/plugin.js");
 plugin.apply({
   react: React,
   effect: (effect: () => unknown) => effect(),
   pages: { register: (page: (typeof pages)[number]) => pages.push(page) },
   relay: { snapshot: () => connection, subscribe: () => () => {} },
-  conversation: { registerMessageAction: () => {} },
+  conversation: {
+    registerMessageAction: (action: MessageAction) => actions.push(action),
+  },
   navigation: { open: async () => ({ status: "opened" }) },
   host: {
     prepareRemoteAgentAuthorization: async () => [
@@ -39,6 +45,10 @@ plugin.apply({
     ],
     request: async (request: { body?: string }) => {
       if (request.body) {
+        writes++;
+        document.documentElement.dataset.saveRequests = String(writes);
+        if (params.has("fail") && writes === 1)
+          return { status: 503, body: JSON.stringify({ error: "Try again" }) };
         const item = JSON.parse(request.body);
         const saved = {
           ...item,
@@ -53,6 +63,8 @@ plugin.apply({
   },
 });
 function Fixture() {
+  const [action, setAction] = React.useState<MessageAction>();
+  const Action = action?.component;
   const [selected, select] = React.useState("todos");
   const Page = pages.find((page) => page.id === selected)?.component;
   return (
@@ -71,6 +83,45 @@ function Fixture() {
           </button>
         ))}
       </nav>
+      <section
+        aria-label="Sample message"
+        style={{ padding: "var(--space-3)" }}
+      >
+        <p>Sample message for toolbar checks</p>
+        <fieldset aria-label="Message actions">
+          {actions
+            .filter((item) => item.placement === "toolbar")
+            .map((item) => (
+              <IconButton
+                key={item.id}
+                size="sm"
+                title={item.title}
+                aria-label={item.title}
+                icon={item.icon ? <item.icon /> : <span />}
+                onClick={() => setAction(item)}
+              />
+            ))}
+        </fieldset>
+        {Action && (
+          <React.StrictMode>
+            <Action
+              key={action.id}
+              message={
+                {
+                  id: "b".repeat(64),
+                  content: "Sample message for toolbar checks",
+                  channelId: "c".repeat(64),
+                  authorId: viewer,
+                } as never
+              }
+              session={connection.session as never}
+              close={() => setAction(undefined)}
+              canOpen={() => true}
+              open={() => true}
+            />
+          </React.StrictMode>
+        )}
+      </section>
       <Page key={selected} />
     </main>
   );
