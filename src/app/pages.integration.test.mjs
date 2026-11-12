@@ -59,6 +59,28 @@ test("the app runtime exposes ready bundled pages and removes them on disable", 
     );
     assert.notEqual(services.accountActions.snapshot()[0], firstFeedback);
     await settle();
+    const personal = () =>
+      services.pages
+        .snapshot()
+        .filter((page) => page.pluginId === "buzz.personal-lists");
+    assert.deepEqual(
+      personal()
+        .map((page) => page.title)
+        .sort(),
+      ["Saved", "To-dos"],
+    );
+    for (const page of personal()) {
+      assert.equal(page.placement, "dock");
+      assert.match(
+        renderToStaticMarkup(createElement(page.component)),
+        /Connect to see your list/,
+      );
+    }
+    await services.plugins.change("disable", "buzz.personal-lists");
+    assert.deepEqual(personal(), []);
+    await services.plugins.change("enable", "buzz.personal-lists");
+    await vi.waitFor(() => assert.equal(personal().length, 2));
+    await services.plugins.change("disable", "buzz.personal-lists");
     assert.equal(services.pages.snapshot().length, 4);
     const { bundledPlugins } = await vite.ssrLoadModule(
       "/src/bundled/index.ts",
