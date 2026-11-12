@@ -13,6 +13,7 @@ import {
 } from "../../src/bundled/personal-lists/model";
 import { createRequest } from "./auth.ts";
 import { saveMessage } from "./save-message";
+import { messagePreview } from "./message-preview";
 import {
   bookmarkIconSvg,
   todoIconSvg,
@@ -131,6 +132,11 @@ export const apply: PluginModule["apply"] = (ctx) => {
       const [sort, setSort] = React.useState("newest");
       const [error, setError] = React.useState("");
       const [clear, setClear] = React.useState(false);
+      const [showForm, setShowForm] = React.useState(false);
+      const [showDone, setShowDone] = React.useState(false);
+      const [expandedItem, setExpandedItem] = React.useState<string | null>(
+        null,
+      );
       const [clearing, setClearing] = React.useState(false);
       const [reminders, setReminders] = React.useState(helperEnabled);
       const busy = state.busy || clearing;
@@ -156,6 +162,7 @@ export const apply: PluginModule["apply"] = (ctx) => {
         }
       }
       function edit(item: PersonalItem) {
+        setShowForm(true);
         setEditing(item);
         setText(item.text);
         const date = item.due === null ? null : new Date(item.due * 1000);
@@ -173,13 +180,31 @@ export const apply: PluginModule["apply"] = (ctx) => {
             display: "flex",
             flexDirection: "column",
             gap: "var(--space-4)",
+            maxWidth: "64rem",
+            marginInline: "auto",
           }}
         >
           <div style={row}>
             {kind === "todo" && (
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setText("");
+                  setDue("");
+                  setShowForm(true);
+                }}
+              >
+                + Add task
+              </Button>
+            )}
+            {kind === "todo" && (
               <label>
                 Filter{" "}
                 <select
+                  data-buzz-ui=""
+                  className="buzz-input"
+                  data-size="sm"
+                  style={{ width: "auto", display: "inline-block" }}
                   aria-label="Filter"
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
@@ -202,6 +227,10 @@ export const apply: PluginModule["apply"] = (ctx) => {
             <label>
               Sort{" "}
               <select
+                data-buzz-ui=""
+                className="buzz-input"
+                data-size="sm"
+                style={{ width: "auto", display: "inline-block" }}
                 aria-label="Sort"
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
@@ -213,11 +242,15 @@ export const apply: PluginModule["apply"] = (ctx) => {
             <Button disabled={busy} onClick={() => void list.refresh()}>
               Refresh
             </Button>
-            <span role="status">
+            <span
+              role="status"
+              className="text-body-sm"
+              style={{ marginInlineStart: "auto", color: "var(--text-subtle)" }}
+            >
               {state.busy ? "Syncing…" : state.loaded ? "Synced" : "Not synced"}
             </span>
           </div>
-          {kind === "todo" && (
+          {kind === "todo" && showForm && (
             <form
               style={{ display: "grid", gap: "var(--space-3)" }}
               onSubmit={(event) => {
@@ -242,6 +275,7 @@ export const apply: PluginModule["apply"] = (ctx) => {
                     setText("");
                     setDue("");
                     setEditing(null);
+                    setShowForm(false);
                   }
                 });
               }}
@@ -273,12 +307,13 @@ export const apply: PluginModule["apply"] = (ctx) => {
                 <Button type="submit" disabled={busy || !text.trim()}>
                   {editing ? "Save task" : "Add task"}
                 </Button>
-                {editing && (
+                {showForm && (
                   <Button
                     onClick={() => {
                       setEditing(null);
                       setText("");
                       setDue("");
+                      setShowForm(false);
                     }}
                   >
                     Cancel
@@ -288,8 +323,277 @@ export const apply: PluginModule["apply"] = (ctx) => {
             </form>
           )}
           {(error || state.error) && <p role="alert">{error || state.error}</p>}
+          {kind === "saved" && (
+            <div style={row}>
+              <Button
+                disabled={
+                  busy ||
+                  !state.items.some(
+                    (item) =>
+                      item.kind === kind && (kind === "saved" || item.done),
+                  )
+                }
+                onClick={() => setClear(true)}
+              >
+                {kind === "saved" ? "Clear Saved" : "Clear done tasks"}
+              </Button>
+            </div>
+          )}
+          {clear && (
+            <fieldset aria-label="Confirm removal">
+              <p>Remove these items on all your devices?</p>
+              <div style={row}>
+                <Button disabled={busy} onClick={() => setClear(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    setClearing(true);
+                    void (async () => {
+                      for (const item of state.items.filter(
+                        (item) =>
+                          item.kind === kind && (kind === "saved" || item.done),
+                      ))
+                        if (!(await save({ ...item, deleted: true }))) break;
+                      setClearing(false);
+                      setClear(false);
+                    })();
+                  }}
+                >
+                  Remove items
+                </Button>
+              </div>
+            </fieldset>
+          )}
+          {!items.length && (
+            <p>
+              {state.loaded
+                ? `No ${title.toLowerCase()} here.`
+                : state.error
+                  ? "Refresh to try again."
+                  : "Loading your list…"}
+            </p>
+          )}
+          {(state.loaded
+            ? kind === "todo"
+              ? [false, true]
+              : [false]
+            : []
+          ).map((done) => (
+            <section
+              key={String(done)}
+              aria-label={
+                kind === "todo" ? (done ? "Done" : "Open") : "Saved items"
+              }
+            >
+              {kind === "todo" && (
+                <div style={{ ...row, justifyContent: "space-between" }}>
+                  <h3
+                    className="text-label-md"
+                    style={{ marginBlock: "var(--space-4)" }}
+                  >
+                    {done ? (
+                      <Button
+                        data-variant="ghost"
+                        aria-expanded={showDone || filter === "done"}
+                        onClick={() => {
+                          setShowDone(!showDone);
+                          if (filter === "done") setFilter("all");
+                        }}
+                      >
+                        {showDone || filter === "done" ? "▾" : "▸"} Done
+                      </Button>
+                    ) : (
+                      "Open"
+                    )}{" "}
+                    <span style={{ color: "var(--text-subtle)" }}>
+                      {items.filter((item) => item.done === done).length}
+                    </span>
+                  </h3>
+                  {done && (
+                    <Button
+                      disabled={
+                        busy ||
+                        !state.items.some(
+                          (item) => item.kind === "todo" && item.done,
+                        )
+                      }
+                      onClick={() => setClear(true)}
+                    >
+                      Clear done
+                    </Button>
+                  )}
+                </div>
+              )}
+              <div hidden={done && !showDone && filter !== "done"}>
+                {kind === "todo" &&
+                  !items.some((item) => item.done === done) && (
+                    <p
+                      className="text-body-sm"
+                      style={{ color: "var(--text-subtle)" }}
+                    >
+                      {done ? "No done tasks." : "No open tasks."}
+                    </p>
+                  )}
+                {items
+                  .filter((item) => kind !== "todo" || item.done === done)
+                  .map((item) => (
+                    <article
+                      key={item.id}
+                      style={{
+                        display: "grid",
+                        gridTemplateColumns: "minmax(0, 1fr) auto",
+                        alignItems: "start",
+                        gap: "var(--space-3)",
+                        borderBottom: "1px solid var(--border-standard)",
+                        paddingBlock: "var(--space-3)",
+                        overflowWrap: "anywhere",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "start",
+                          gap: "var(--space-3)",
+                        }}
+                      >
+                        {kind === "todo" && (
+                          <input
+                            type="checkbox"
+                            aria-label={
+                              item.done ? "Reopen task" : "Mark task done"
+                            }
+                            checked={item.done}
+                            disabled={busy}
+                            onChange={() =>
+                              void save({ ...item, done: !item.done })
+                            }
+                            style={{
+                              marginTop: "var(--space-1)",
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <p
+                          className="text-body-md"
+                          style={{
+                            margin: 0,
+                            whiteSpace: "pre-line",
+                            color: item.done
+                              ? "var(--text-subtle)"
+                              : "var(--text-standard)",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {messagePreview(item.text)}
+                        </p>
+                      </div>
+                      <div
+                        style={{
+                          ...row,
+                          gridColumn: 2,
+                          gridRow: 1,
+                          flexWrap: "nowrap",
+                        }}
+                      >
+                        {item.target && (
+                          <Button
+                            data-variant="ghost"
+                            aria-label="Open message"
+                            title="Open message"
+                            onClick={() => {
+                              const connection = ctx.relay.snapshot();
+                              const scope =
+                                connection.scope &&
+                                splitPartition(connection.scope);
+                              if (!scope || !item.target) return;
+                              void ctx.navigation
+                                .open({
+                                  version: 1,
+                                  kind: "conversation",
+                                  scope,
+                                  channelId: item.target.channelId,
+                                  messageId: item.target.eventId,
+                                })
+                                .then((result) => {
+                                  if (result.status === "failed")
+                                    setError(
+                                      "This message cannot open. The saved item is still here.",
+                                    );
+                                })
+                                .catch((error) => setError(String(error)));
+                            }}
+                          >
+                            ↗
+                          </Button>
+                        )}
+                        <Button
+                          data-variant="ghost"
+                          aria-label="More actions"
+                          title="More actions"
+                          aria-expanded={expandedItem === item.id}
+                          onClick={() =>
+                            setExpandedItem(
+                              expandedItem === item.id ? null : item.id,
+                            )
+                          }
+                        >
+                          ⋯
+                        </Button>
+                      </div>
+                      {item.due !== null && !item.done && (
+                        <small style={{ color: "var(--text-subtle)" }}>
+                          Due {new Date(item.due * 1000).toLocaleString()}
+                        </small>
+                      )}
+                      {expandedItem === item.id && (
+                        <div
+                          style={{
+                            ...row,
+                            gridColumn: "1 / -1",
+                            paddingBlock: "var(--space-2)",
+                          }}
+                        >
+                          {kind === "todo" && (
+                            <Button disabled={busy} onClick={() => edit(item)}>
+                              Edit
+                            </Button>
+                          )}
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              void save({
+                                ...item,
+                                kind: kind === "saved" ? "todo" : "saved",
+                                done: false,
+                                due: null,
+                              })
+                            }
+                          >
+                            Move to {kind === "saved" ? "To-dos" : "Saved"}
+                          </Button>
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              void save({ ...item, deleted: true })
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </article>
+                  ))}
+              </div>
+            </section>
+          ))}
           {kind === "todo" && (
-            <div>
+            <details>
+              <summary className="text-body-sm">Reminder settings</summary>
               <label>
                 <input
                   type="checkbox"
@@ -330,140 +634,8 @@ export const apply: PluginModule["apply"] = (ctx) => {
                   Tasks are saved. Reminders: {state.reminderError}
                 </p>
               )}
-            </div>
+            </details>
           )}
-          <div style={row}>
-            <Button
-              disabled={
-                busy ||
-                !state.items.some(
-                  (item) =>
-                    item.kind === kind && (kind === "saved" || item.done),
-                )
-              }
-              onClick={() => setClear(true)}
-            >
-              {kind === "saved" ? "Clear Saved" : "Clear done tasks"}
-            </Button>
-          </div>
-          {clear && (
-            <fieldset aria-label="Confirm removal">
-              <p>Remove these items on all your devices?</p>
-              <div style={row}>
-                <Button disabled={busy} onClick={() => setClear(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() => {
-                    setClearing(true);
-                    void (async () => {
-                      for (const item of state.items.filter(
-                        (item) =>
-                          item.kind === kind && (kind === "saved" || item.done),
-                      ))
-                        if (!(await save({ ...item, deleted: true }))) break;
-                      setClearing(false);
-                      setClear(false);
-                    })();
-                  }}
-                >
-                  Remove items
-                </Button>
-              </div>
-            </fieldset>
-          )}
-          {!items.length && (
-            <p>
-              {state.loaded
-                ? `No ${title.toLowerCase()} here.`
-                : state.error
-                  ? "Refresh to try again."
-                  : "Loading your list…"}
-            </p>
-          )}
-          {items.map((item) => (
-            <article
-              key={item.id}
-              style={{
-                display: "grid",
-                gap: "var(--space-2)",
-                borderBottom: "1px solid var(--border-subtle)",
-                paddingBlock: "var(--space-3)",
-                overflowWrap: "anywhere",
-              }}
-            >
-              <span>{item.text}</span>
-              <small>
-                {item.done
-                  ? "Done"
-                  : item.due
-                    ? `Due ${new Date(item.due * 1000).toLocaleString()}`
-                    : "No reminder"}
-              </small>
-              <div style={row}>
-                {item.target && (
-                  <Button
-                    onClick={() => {
-                      const connection = ctx.relay.snapshot();
-                      const scope =
-                        connection.scope && splitPartition(connection.scope);
-                      if (!scope || !item.target) return;
-                      void ctx.navigation
-                        .open({
-                          version: 1,
-                          kind: "conversation",
-                          scope,
-                          channelId: item.target.channelId,
-                          messageId: item.target.eventId,
-                        })
-                        .then((result) => {
-                          if (result.status === "failed")
-                            setError(
-                              "This message cannot open. The saved item is still here.",
-                            );
-                        })
-                        .catch((error) => setError(String(error)));
-                    }}
-                  >
-                    Open message
-                  </Button>
-                )}
-                {kind === "todo" && (
-                  <>
-                    <Button
-                      disabled={busy}
-                      onClick={() => void save({ ...item, done: !item.done })}
-                    >
-                      {item.done ? "Reopen" : "Mark done"}
-                    </Button>
-                    <Button disabled={busy} onClick={() => edit(item)}>
-                      Edit
-                    </Button>
-                  </>
-                )}
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void save({
-                      ...item,
-                      kind: kind === "saved" ? "todo" : "saved",
-                      done: false,
-                      due: null,
-                    })
-                  }
-                >
-                  Move to {kind === "saved" ? "To-dos" : "Saved"}
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() => void save({ ...item, deleted: true })}
-                >
-                  Remove
-                </Button>
-              </div>
-            </article>
-          ))}
         </div>
       );
     }
@@ -513,126 +685,175 @@ export const apply: PluginModule["apply"] = (ctx) => {
         );
       },
     });
-    ctx.conversation.registerMessageAction({
-      id: kind,
-      title: kind === "saved" ? "Save for later" : "Add to To-dos",
-      placement: "toolbar",
-      icon: function ActionIcon() {
-        return (
-          <span
-            aria-hidden="true"
-            style={{
-              display: "inline-block",
-              width: "1rem",
-              height: "1rem",
-              backgroundColor: "currentColor",
-              mask: `url("data:image/svg+xml,${encodeURIComponent(kind === "saved" ? bookmarkIconSvg : todoIconSvg)}") center / contain no-repeat`,
-            }}
-          />
-        );
-      },
-      matches: (message) => /^[a-f0-9]{64}$/.test(message.id),
-      component: function Action({ message, session, close }) {
-        const [error, setError] = React.useState("");
-        const [busy, setBusy] = React.useState(true);
-        const [saved, setSaved] = React.useState(false);
-        const started = React.useRef(false);
-        const notice = React.useRef<HTMLDivElement>(null);
-        React.useLayoutEffect(() => {
-          const element = notice.current;
-          element?.showPopover();
-          return () => {
-            if (element?.matches(":popover-open")) element.hidePopover();
-          };
-        }, []);
-        const save = () => {
-          const list = currentStore();
-          if (!list || ctx.relay.snapshot().session !== session) {
-            setError("Connect before saving.");
-            setBusy(false);
-            return;
-          }
-          setBusy(true);
-          setError("");
-          void saveMessage(
-            list,
-            kind,
-            message,
-            () =>
-              currentStore() === list &&
-              ctx.relay.snapshot().session === session,
-          )
-            .then(() => setSaved(true))
-            .catch((error) =>
-              setError(error instanceof Error ? error.message : String(error)),
+    for (const active of [false, true])
+      ctx.conversation.registerMessageAction({
+        id: active ? `${kind}-active` : kind,
+        title: active
+          ? kind === "saved"
+            ? "Saved"
+            : "Added to To-dos"
+          : kind === "saved"
+            ? "Save for later"
+            : "Add to To-dos",
+        placement: "toolbar",
+        icon: function ActionIcon() {
+          if (active)
+            return (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "1.25rem",
+                  height: "1.25rem",
+                  borderRadius: "50%",
+                  backgroundColor: "var(--text-success)",
+                  color: "var(--surface-base)",
+                }}
+              >
+                ✓
+              </span>
+            );
+          return (
+            <span
+              aria-hidden="true"
+              style={{
+                display: "inline-block",
+                width: "1rem",
+                height: "1rem",
+                backgroundColor: "currentColor",
+                mask: `url("data:image/svg+xml,${encodeURIComponent(kind === "saved" ? bookmarkIconSvg : todoIconSvg)}") center / contain no-repeat`,
+              }}
+            />
+          );
+        },
+        matches: (message, session) =>
+          /^[a-f0-9]{64}$/.test(message.id) &&
+          active ===
+            Boolean(
+              ctx.relay.snapshot().session === session &&
+                currentStore()
+                  ?.snapshot()
+                  .items.some(
+                    (item) =>
+                      item.kind === kind && item.target?.eventId === message.id,
+                  ),
+            ),
+        component: function Action({ message, session, close }) {
+          const [error, setError] = React.useState("");
+          const [busy, setBusy] = React.useState(true);
+          const [saved, setSaved] = React.useState(false);
+          const started = React.useRef(false);
+          const notice = React.useRef<HTMLDivElement>(null);
+          React.useLayoutEffect(() => {
+            const element = notice.current;
+            element?.showPopover();
+            return () => {
+              if (element?.matches(":popover-open")) element.hidePopover();
+            };
+          }, []);
+          const save = () => {
+            const list = currentStore();
+            if (!list || ctx.relay.snapshot().session !== session) {
+              setError("Connect before saving.");
+              setBusy(false);
+              return;
+            }
+            setBusy(true);
+            setError("");
+            void saveMessage(
+              list,
+              kind,
+              message,
+              () =>
+                currentStore() === list &&
+                ctx.relay.snapshot().session === session,
             )
-            .finally(() => setBusy(false));
-        };
-        React.useEffect(() => {
-          if (started.current) return;
-          started.current = true;
-          save();
-        }, []);
-        React.useEffect(() => {
-          if (!saved) return;
-          const timer = setTimeout(close, 3000);
-          return () => clearTimeout(timer);
-        }, [saved, close]);
-        return (
-          <div
-            ref={notice}
-            popover="manual"
-            role={error ? "alert" : "status"}
-            data-buzz-ui=""
-            data-type={error ? "error" : saved ? "success" : "info"}
-            className="buzz-toast floating-surface"
-            style={{
-              position: "fixed",
-              inset: "var(--space-6) var(--space-6) auto auto",
-              margin: 0,
-              width: "min(22rem, calc(100vw - 2 * var(--space-6)))",
-            }}
-          >
-            <div className="buzz-toast-heading">
-              <div className="buzz-toast-message">
-                <div className="buzz-toast-title text-label-sm">
-                  {error
-                    ? "Could not save"
-                    : busy
-                      ? "Saving…"
-                      : kind === "saved"
-                        ? "Saved"
-                        : "Added to To-dos"}
+              .then((changed) => {
+                if (changed) setSaved(true);
+                else close();
+              })
+              .catch((error) =>
+                setError(
+                  error instanceof Error ? error.message : String(error),
+                ),
+              )
+              .finally(() => setBusy(false));
+          };
+          React.useEffect(() => {
+            if (started.current) return;
+            started.current = true;
+            save();
+          }, []);
+          React.useEffect(() => {
+            if (!saved) return;
+            const timer = setTimeout(close, 3000);
+            return () => clearTimeout(timer);
+          }, [saved, close]);
+          return (
+            <div
+              ref={notice}
+              popover="manual"
+              role={error ? "alert" : "status"}
+              data-buzz-ui=""
+              data-type={error ? "error" : saved ? "success" : "info"}
+              className="buzz-toast floating-surface"
+              style={{
+                position: "fixed",
+                top: "var(--space-6)",
+                right: "var(--space-6)",
+                bottom: "auto",
+                left: "auto",
+                height: "fit-content",
+                minHeight: 0,
+                maxHeight: "min(14rem, calc(100dvh - 2 * var(--space-6)))",
+                overflowY: "auto",
+                display: "block",
+                margin: 0,
+                width: "min(22rem, calc(100vw - 2 * var(--space-6)))",
+              }}
+            >
+              <div className="buzz-toast-heading">
+                <div className="buzz-toast-message">
+                  <div className="buzz-toast-title text-label-sm">
+                    {error
+                      ? "Could not save"
+                      : busy
+                        ? "Saving…"
+                        : kind === "saved"
+                          ? "Saved"
+                          : "Added to To-dos"}
+                  </div>
+                  {error && <p className="text-body-sm">{error}</p>}
                 </div>
-                {error && <p className="text-body-sm">{error}</p>}
+                <div className="buzz-toast-dismiss">
+                  <Button
+                    data-variant="ghost"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      close();
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
-              <div className="buzz-toast-dismiss">
-                <Button
-                  data-variant="ghost"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    close();
-                  }}
-                >
-                  Close
-                </Button>
-              </div>
+              {error && (
+                <div className="buzz-toast-actions">
+                  <Button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      save();
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              )}
             </div>
-            {error && (
-              <div className="buzz-toast-actions">
-                <Button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    save();
-                  }}
-                >
-                  Try again
-                </Button>
-              </div>
-            )}
-          </div>
-        );
-      },
-    });
+          );
+        },
+      });
   }
 };

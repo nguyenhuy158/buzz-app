@@ -37,7 +37,9 @@ test("message save waits for sync, deduplicates, and keeps failures retryable", 
   await Promise.all([refreshing, saving]);
   expect(writes).toHaveLength(1);
   expect(list.snapshot().items[0]?.target?.eventId).toBe(message.id);
-  await saveMessage(list, "saved", message, () => true);
+  await expect(saveMessage(list, "saved", message, () => true)).resolves.toBe(
+    false,
+  );
   expect(writes).toHaveLength(1);
   fail = true;
   await expect(saveMessage(list, "todo", message, () => true)).rejects.toThrow(
