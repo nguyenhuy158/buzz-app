@@ -12,6 +12,7 @@ import {
   type PersonalItem,
 } from "../../src/bundled/personal-lists/model";
 import { createRequest } from "./auth.ts";
+import { saveMessage } from "./save-message";
 import {
   bookmarkIconSvg,
   todoIconSvg,
@@ -117,6 +118,24 @@ export const apply: PluginModule["apply"] = (ctx) => {
   for (const kind of ["saved", "todo"] as const) {
     const title = kind === "saved" ? "Saved" : "To-dos";
     const pageId = kind === "saved" ? "saved" : "todos";
+    function SavedMarker({
+      list,
+      eventId,
+    }: {
+      list: ReturnType<typeof createStore>;
+      eventId: string;
+    }) {
+      const state = React.useSyncExternalStore(
+        list.subscribe,
+        list.snapshot,
+        list.snapshot,
+      );
+      return state.items.some(
+        (item) => item.kind === kind && item.target?.eventId === eventId,
+      ) ? (
+        <span role="status">{kind === "saved" ? "Saved" : "In To-dos"}</span>
+      ) : null;
+    }
     function List({ list }: { list: ReturnType<typeof createStore> }) {
       const state = React.useSyncExternalStore(
         list.subscribe,
@@ -531,52 +550,38 @@ export const apply: PluginModule["apply"] = (ctx) => {
         );
       },
       matches: (message) => /^[a-f0-9]{64}$/.test(message.id),
+      marker: function Marker({ message, session }) {
+        const list = currentStore();
+        return list && ctx.relay.snapshot().session === session ? (
+          <SavedMarker list={list} eventId={message.id} />
+        ) : null;
+      },
       component: function Action({ message, session, close }) {
         const [error, setError] = React.useState("");
-        const [busy, setBusy] = React.useState(false);
+        const [busy, setBusy] = React.useState(true);
+        const [saved, setSaved] = React.useState(false);
         const started = React.useRef(false);
         const save = () => {
           const list = currentStore();
           if (!list || ctx.relay.snapshot().session !== session) {
             setError("Connect before saving.");
+            setBusy(false);
             return;
           }
           setBusy(true);
           setError("");
-          void (async () => {
-            if (!list.snapshot().loaded) await list.refresh();
-            const existing = list
-              .snapshot()
-              .items.find((item) => item.target?.eventId === message.id);
-            if (existing?.kind !== kind)
-              await list.save(
-                existing
-                  ? { ...existing, kind, due: null, done: false }
-                  : {
-                      ...newItem(
-                        kind,
-                        message.content.trim().slice(0, 1000) || "Saved file",
-                      ),
-                      target: {
-                        eventId: message.id,
-                        channelId: message.channelId,
-                        authorPubkey: message.authorId,
-                      },
-                    },
-              );
-            const connection = ctx.relay.snapshot();
-            const scope = connection.scope && splitPartition(connection.scope);
-            if (scope)
-              await ctx.navigation.open({
-                version: 1,
-                kind: "plugin",
-                pluginId: "personal.lists",
-                pageId,
-                scope,
-              });
-            close();
-          })()
-            .catch((error) => setError(String(error)))
+          void saveMessage(
+            list,
+            kind,
+            message,
+            () =>
+              currentStore() === list &&
+              ctx.relay.snapshot().session === session,
+          )
+            .then(() => setSaved(true))
+            .catch((error) =>
+              setError(error instanceof Error ? error.message : String(error)),
+            )
             .finally(() => setBusy(false));
         };
         React.useEffect(() => {
@@ -584,9 +589,19 @@ export const apply: PluginModule["apply"] = (ctx) => {
           started.current = true;
           save();
         }, []);
+        React.useEffect(() => {
+          if (!saved) return;
+          const timer = setTimeout(close, 3000);
+          return () => clearTimeout(timer);
+        }, [saved, close]);
         return (
           <>
             {busy && <p role="status">Saving…</p>}
+            {saved && (
+              <p role="status">
+                {kind === "saved" ? "Saved" : "Added to To-dos"}
+              </p>
+            )}
             {error && (
               <button
                 type="button"

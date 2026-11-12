@@ -45,6 +45,12 @@ plugin.apply({
     ],
     request: async (request: { body?: string }) => {
       if (request.body) {
+        if (params.has("hold"))
+          await new Promise<void>((resolve) =>
+            window.addEventListener("release-save", () => resolve(), {
+              once: true,
+            }),
+          );
         writes++;
         document.documentElement.dataset.saveRequests = String(writes);
         if (params.has("fail") && writes === 1)
@@ -102,6 +108,16 @@ function Fixture() {
               />
             ))}
         </fieldset>
+        {actions.map(
+          (item) =>
+            item.marker && (
+              <item.marker
+                key={item.id}
+                message={{ id: "b".repeat(64) } as never}
+                session={connection.session as never}
+              />
+            ),
+        )}
         {Action && (
           <React.StrictMode>
             <Action
