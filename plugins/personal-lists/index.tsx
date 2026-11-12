@@ -133,6 +133,10 @@ export const apply: PluginModule["apply"] = (ctx) => {
       const [error, setError] = React.useState("");
       const [clear, setClear] = React.useState(false);
       const [showForm, setShowForm] = React.useState(false);
+      const [showDone, setShowDone] = React.useState(false);
+      const [expandedItem, setExpandedItem] = React.useState<string | null>(
+        null,
+      );
       const [clearing, setClearing] = React.useState(false);
       const [reminders, setReminders] = React.useState(helperEnabled);
       const busy = state.busy || clearing;
@@ -197,6 +201,10 @@ export const apply: PluginModule["apply"] = (ctx) => {
               <label>
                 Filter{" "}
                 <select
+                  data-buzz-ui=""
+                  className="buzz-input"
+                  data-size="sm"
+                  style={{ width: "auto", display: "inline-block" }}
                   aria-label="Filter"
                   value={filter}
                   onChange={(event) => setFilter(event.target.value)}
@@ -219,6 +227,10 @@ export const apply: PluginModule["apply"] = (ctx) => {
             <label>
               Sort{" "}
               <select
+                data-buzz-ui=""
+                className="buzz-input"
+                data-size="sm"
+                style={{ width: "auto", display: "inline-block" }}
                 aria-label="Sort"
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
@@ -381,7 +393,20 @@ export const apply: PluginModule["apply"] = (ctx) => {
                     className="text-label-md"
                     style={{ marginBlock: "var(--space-4)" }}
                   >
-                    {done ? "Done" : "Open"}{" "}
+                    {done ? (
+                      <Button
+                        data-variant="ghost"
+                        aria-expanded={showDone || filter === "done"}
+                        onClick={() => {
+                          setShowDone(!showDone);
+                          if (filter === "done") setFilter("all");
+                        }}
+                      >
+                        {showDone || filter === "done" ? "▾" : "▸"} Done
+                      </Button>
+                    ) : (
+                      "Open"
+                    )}{" "}
                     <span style={{ color: "var(--text-subtle)" }}>
                       {items.filter((item) => item.done === done).length}
                     </span>
@@ -401,104 +426,138 @@ export const apply: PluginModule["apply"] = (ctx) => {
                   )}
                 </div>
               )}
-              {kind === "todo" && !items.some((item) => item.done === done) && (
-                <p
-                  className="text-body-sm"
-                  style={{ color: "var(--text-subtle)" }}
-                >
-                  {done ? "No done tasks." : "No open tasks."}
-                </p>
-              )}
-              {items
-                .filter((item) => kind !== "todo" || item.done === done)
-                .map((item) => (
-                  <article
-                    key={item.id}
-                    style={{
-                      display: "grid",
-                      gap: "var(--space-2)",
-                      borderBottom: "1px solid var(--border-subtle)",
-                      paddingBlock: "var(--space-3)",
-                      overflowWrap: "anywhere",
-                    }}
-                  >
-                    <div
+              <div hidden={done && !showDone && filter !== "done"}>
+                {kind === "todo" &&
+                  !items.some((item) => item.done === done) && (
+                    <p
+                      className="text-body-sm"
+                      style={{ color: "var(--text-subtle)" }}
+                    >
+                      {done ? "No done tasks." : "No open tasks."}
+                    </p>
+                  )}
+                {items
+                  .filter((item) => kind !== "todo" || item.done === done)
+                  .map((item) => (
+                    <article
+                      key={item.id}
                       style={{
-                        display: "flex",
+                        display: "grid",
+                        gridTemplateColumns: "minmax(0, 1fr) auto",
                         alignItems: "start",
                         gap: "var(--space-3)",
+                        borderBottom: "1px solid var(--border-standard)",
+                        paddingBlock: "var(--space-3)",
+                        overflowWrap: "anywhere",
                       }}
                     >
-                      {kind === "todo" && (
-                        <input
-                          type="checkbox"
-                          aria-label={
-                            item.done ? "Reopen task" : "Mark task done"
-                          }
-                          checked={item.done}
-                          disabled={busy}
-                          onChange={() =>
-                            void save({ ...item, done: !item.done })
-                          }
-                          style={{ marginTop: "var(--space-1)", flexShrink: 0 }}
-                        />
-                      )}
-                      <p
-                        className="text-body-md"
+                      <div
                         style={{
-                          margin: 0,
-                          whiteSpace: "pre-line",
-                          color: item.done
-                            ? "var(--text-subtle)"
-                            : "var(--text-standard)",
-                          display: "-webkit-box",
-                          WebkitLineClamp: 3,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
+                          display: "flex",
+                          alignItems: "start",
+                          gap: "var(--space-3)",
                         }}
                       >
-                        {messagePreview(item.text)}
-                      </p>
-                    </div>
-                    <small>
-                      {item.done
-                        ? "Done"
-                        : item.due
-                          ? `Due ${new Date(item.due * 1000).toLocaleString()}`
-                          : "No reminder"}
-                    </small>
-                    <div style={row}>
-                      {item.target && (
-                        <Button
-                          onClick={() => {
-                            const connection = ctx.relay.snapshot();
-                            const scope =
-                              connection.scope &&
-                              splitPartition(connection.scope);
-                            if (!scope || !item.target) return;
-                            void ctx.navigation
-                              .open({
-                                version: 1,
-                                kind: "conversation",
-                                scope,
-                                channelId: item.target.channelId,
-                                messageId: item.target.eventId,
-                              })
-                              .then((result) => {
-                                if (result.status === "failed")
-                                  setError(
-                                    "This message cannot open. The saved item is still here.",
-                                  );
-                              })
-                              .catch((error) => setError(String(error)));
+                        {kind === "todo" && (
+                          <input
+                            type="checkbox"
+                            aria-label={
+                              item.done ? "Reopen task" : "Mark task done"
+                            }
+                            checked={item.done}
+                            disabled={busy}
+                            onChange={() =>
+                              void save({ ...item, done: !item.done })
+                            }
+                            style={{
+                              marginTop: "var(--space-1)",
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
+                        <p
+                          className="text-body-md"
+                          style={{
+                            margin: 0,
+                            whiteSpace: "pre-line",
+                            color: item.done
+                              ? "var(--text-subtle)"
+                              : "var(--text-standard)",
+                            display: "-webkit-box",
+                            WebkitLineClamp: 3,
+                            WebkitBoxOrient: "vertical",
+                            overflow: "hidden",
                           }}
                         >
-                          Open message
+                          {messagePreview(item.text)}
+                        </p>
+                      </div>
+                      <div
+                        style={{
+                          ...row,
+                          gridColumn: 2,
+                          gridRow: 1,
+                          flexWrap: "nowrap",
+                        }}
+                      >
+                        {item.target && (
+                          <Button
+                            data-variant="ghost"
+                            aria-label="Open message"
+                            title="Open message"
+                            onClick={() => {
+                              const connection = ctx.relay.snapshot();
+                              const scope =
+                                connection.scope &&
+                                splitPartition(connection.scope);
+                              if (!scope || !item.target) return;
+                              void ctx.navigation
+                                .open({
+                                  version: 1,
+                                  kind: "conversation",
+                                  scope,
+                                  channelId: item.target.channelId,
+                                  messageId: item.target.eventId,
+                                })
+                                .then((result) => {
+                                  if (result.status === "failed")
+                                    setError(
+                                      "This message cannot open. The saved item is still here.",
+                                    );
+                                })
+                                .catch((error) => setError(String(error)));
+                            }}
+                          >
+                            ↗
+                          </Button>
+                        )}
+                        <Button
+                          data-variant="ghost"
+                          aria-label="More actions"
+                          title="More actions"
+                          aria-expanded={expandedItem === item.id}
+                          onClick={() =>
+                            setExpandedItem(
+                              expandedItem === item.id ? null : item.id,
+                            )
+                          }
+                        >
+                          ⋯
                         </Button>
+                      </div>
+                      {item.due !== null && !item.done && (
+                        <small style={{ color: "var(--text-subtle)" }}>
+                          Due {new Date(item.due * 1000).toLocaleString()}
+                        </small>
                       )}
-                      <details>
-                        <summary className="text-body-sm">More</summary>
-                        <div style={{ ...row, paddingBlock: "var(--space-2)" }}>
+                      {expandedItem === item.id && (
+                        <div
+                          style={{
+                            ...row,
+                            gridColumn: "1 / -1",
+                            paddingBlock: "var(--space-2)",
+                          }}
+                        >
                           {kind === "todo" && (
                             <Button disabled={busy} onClick={() => edit(item)}>
                               Edit
@@ -526,10 +585,10 @@ export const apply: PluginModule["apply"] = (ctx) => {
                             Remove
                           </Button>
                         </div>
-                      </details>
-                    </div>
-                  </article>
-                ))}
+                      )}
+                    </article>
+                  ))}
+              </div>
             </section>
           ))}
           {kind === "todo" && (

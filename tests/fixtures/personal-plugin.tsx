@@ -24,6 +24,11 @@ let items = [
       "todo",
       "**Review the plugin**\n\nCheck the [release notes](https://example.org/notes) before the next update.",
     ),
+    target: {
+      eventId: "d".repeat(64),
+      channelId: "c".repeat(64),
+      authorPubkey: viewer,
+    },
     revision: 1,
     created: 1,
   },

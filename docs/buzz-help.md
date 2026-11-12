@@ -1441,3 +1441,5 @@ A toast shows Saving while the request runs, then Saved or Added to To-dos after
 After the toolbar updates, a saved action stays in place with a green check. Clicking it again does not add a second item. Use Saved or To-dos to remove the item.
 
 Personal Lists shows open and done tasks in separate groups with counts. Use a checkbox to finish or reopen a task. Add task opens the form. More holds Edit, Move, and Remove. Reminder settings stay collapsed until needed. Message previews show readable text; Open message opens the full original.
+
+Task rows keep the message and actions on one line. Use the arrow to open the source message and the three-dot button for more actions. Done starts collapsed; expand it to see or reopen finished tasks. Only tasks with a reminder show a due date.
