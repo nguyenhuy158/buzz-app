@@ -466,6 +466,7 @@ export const apply: PluginModule["apply"] = (ctx) => {
       id: pageId,
       title,
       primary: true,
+      placement: "dock",
       component: function Page() {
         React.useSyncExternalStore(
           ctx.relay.subscribe,
