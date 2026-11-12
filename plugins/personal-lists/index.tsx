@@ -13,6 +13,7 @@ import {
 } from "../../src/bundled/personal-lists/model";
 import { createRequest } from "./auth.ts";
 import { saveMessage } from "./save-message";
+import { messagePreview } from "./message-preview";
 import {
   bookmarkIconSvg,
   todoIconSvg,
@@ -131,6 +132,7 @@ export const apply: PluginModule["apply"] = (ctx) => {
       const [sort, setSort] = React.useState("newest");
       const [error, setError] = React.useState("");
       const [clear, setClear] = React.useState(false);
+      const [showForm, setShowForm] = React.useState(false);
       const [clearing, setClearing] = React.useState(false);
       const [reminders, setReminders] = React.useState(helperEnabled);
       const busy = state.busy || clearing;
@@ -156,6 +158,7 @@ export const apply: PluginModule["apply"] = (ctx) => {
         }
       }
       function edit(item: PersonalItem) {
+        setShowForm(true);
         setEditing(item);
         setText(item.text);
         const date = item.due === null ? null : new Date(item.due * 1000);
@@ -173,9 +176,23 @@ export const apply: PluginModule["apply"] = (ctx) => {
             display: "flex",
             flexDirection: "column",
             gap: "var(--space-4)",
+            maxWidth: "64rem",
+            marginInline: "auto",
           }}
         >
           <div style={row}>
+            {kind === "todo" && (
+              <Button
+                onClick={() => {
+                  setEditing(null);
+                  setText("");
+                  setDue("");
+                  setShowForm(true);
+                }}
+              >
+                + Add task
+              </Button>
+            )}
             {kind === "todo" && (
               <label>
                 Filter{" "}
@@ -213,11 +230,15 @@ export const apply: PluginModule["apply"] = (ctx) => {
             <Button disabled={busy} onClick={() => void list.refresh()}>
               Refresh
             </Button>
-            <span role="status">
+            <span
+              role="status"
+              className="text-body-sm"
+              style={{ marginInlineStart: "auto", color: "var(--text-subtle)" }}
+            >
               {state.busy ? "Syncing…" : state.loaded ? "Synced" : "Not synced"}
             </span>
           </div>
-          {kind === "todo" && (
+          {kind === "todo" && showForm && (
             <form
               style={{ display: "grid", gap: "var(--space-3)" }}
               onSubmit={(event) => {
@@ -242,6 +263,7 @@ export const apply: PluginModule["apply"] = (ctx) => {
                     setText("");
                     setDue("");
                     setEditing(null);
+                    setShowForm(false);
                   }
                 });
               }}
@@ -273,12 +295,13 @@ export const apply: PluginModule["apply"] = (ctx) => {
                 <Button type="submit" disabled={busy || !text.trim()}>
                   {editing ? "Save task" : "Add task"}
                 </Button>
-                {editing && (
+                {showForm && (
                   <Button
                     onClick={() => {
                       setEditing(null);
                       setText("");
                       setDue("");
+                      setShowForm(false);
                     }}
                   >
                     Cancel
@@ -288,8 +311,230 @@ export const apply: PluginModule["apply"] = (ctx) => {
             </form>
           )}
           {(error || state.error) && <p role="alert">{error || state.error}</p>}
+          {kind === "saved" && (
+            <div style={row}>
+              <Button
+                disabled={
+                  busy ||
+                  !state.items.some(
+                    (item) =>
+                      item.kind === kind && (kind === "saved" || item.done),
+                  )
+                }
+                onClick={() => setClear(true)}
+              >
+                {kind === "saved" ? "Clear Saved" : "Clear done tasks"}
+              </Button>
+            </div>
+          )}
+          {clear && (
+            <fieldset aria-label="Confirm removal">
+              <p>Remove these items on all your devices?</p>
+              <div style={row}>
+                <Button disabled={busy} onClick={() => setClear(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={busy}
+                  onClick={() => {
+                    setClearing(true);
+                    void (async () => {
+                      for (const item of state.items.filter(
+                        (item) =>
+                          item.kind === kind && (kind === "saved" || item.done),
+                      ))
+                        if (!(await save({ ...item, deleted: true }))) break;
+                      setClearing(false);
+                      setClear(false);
+                    })();
+                  }}
+                >
+                  Remove items
+                </Button>
+              </div>
+            </fieldset>
+          )}
+          {!items.length && (
+            <p>
+              {state.loaded
+                ? `No ${title.toLowerCase()} here.`
+                : state.error
+                  ? "Refresh to try again."
+                  : "Loading your list…"}
+            </p>
+          )}
+          {(state.loaded
+            ? kind === "todo"
+              ? [false, true]
+              : [false]
+            : []
+          ).map((done) => (
+            <section
+              key={String(done)}
+              aria-label={
+                kind === "todo" ? (done ? "Done" : "Open") : "Saved items"
+              }
+            >
+              {kind === "todo" && (
+                <div style={{ ...row, justifyContent: "space-between" }}>
+                  <h3
+                    className="text-label-md"
+                    style={{ marginBlock: "var(--space-4)" }}
+                  >
+                    {done ? "Done" : "Open"}{" "}
+                    <span style={{ color: "var(--text-subtle)" }}>
+                      {items.filter((item) => item.done === done).length}
+                    </span>
+                  </h3>
+                  {done && (
+                    <Button
+                      disabled={
+                        busy ||
+                        !state.items.some(
+                          (item) => item.kind === "todo" && item.done,
+                        )
+                      }
+                      onClick={() => setClear(true)}
+                    >
+                      Clear done
+                    </Button>
+                  )}
+                </div>
+              )}
+              {kind === "todo" && !items.some((item) => item.done === done) && (
+                <p
+                  className="text-body-sm"
+                  style={{ color: "var(--text-subtle)" }}
+                >
+                  {done ? "No done tasks." : "No open tasks."}
+                </p>
+              )}
+              {items
+                .filter((item) => kind !== "todo" || item.done === done)
+                .map((item) => (
+                  <article
+                    key={item.id}
+                    style={{
+                      display: "grid",
+                      gap: "var(--space-2)",
+                      borderBottom: "1px solid var(--border-subtle)",
+                      paddingBlock: "var(--space-3)",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "start",
+                        gap: "var(--space-3)",
+                      }}
+                    >
+                      {kind === "todo" && (
+                        <input
+                          type="checkbox"
+                          aria-label={
+                            item.done ? "Reopen task" : "Mark task done"
+                          }
+                          checked={item.done}
+                          disabled={busy}
+                          onChange={() =>
+                            void save({ ...item, done: !item.done })
+                          }
+                          style={{ marginTop: "var(--space-1)", flexShrink: 0 }}
+                        />
+                      )}
+                      <p
+                        className="text-body-md"
+                        style={{
+                          margin: 0,
+                          whiteSpace: "pre-line",
+                          color: item.done
+                            ? "var(--text-subtle)"
+                            : "var(--text-standard)",
+                          display: "-webkit-box",
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {messagePreview(item.text)}
+                      </p>
+                    </div>
+                    <small>
+                      {item.done
+                        ? "Done"
+                        : item.due
+                          ? `Due ${new Date(item.due * 1000).toLocaleString()}`
+                          : "No reminder"}
+                    </small>
+                    <div style={row}>
+                      {item.target && (
+                        <Button
+                          onClick={() => {
+                            const connection = ctx.relay.snapshot();
+                            const scope =
+                              connection.scope &&
+                              splitPartition(connection.scope);
+                            if (!scope || !item.target) return;
+                            void ctx.navigation
+                              .open({
+                                version: 1,
+                                kind: "conversation",
+                                scope,
+                                channelId: item.target.channelId,
+                                messageId: item.target.eventId,
+                              })
+                              .then((result) => {
+                                if (result.status === "failed")
+                                  setError(
+                                    "This message cannot open. The saved item is still here.",
+                                  );
+                              })
+                              .catch((error) => setError(String(error)));
+                          }}
+                        >
+                          Open message
+                        </Button>
+                      )}
+                      <details>
+                        <summary className="text-body-sm">More</summary>
+                        <div style={{ ...row, paddingBlock: "var(--space-2)" }}>
+                          {kind === "todo" && (
+                            <Button disabled={busy} onClick={() => edit(item)}>
+                              Edit
+                            </Button>
+                          )}
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              void save({
+                                ...item,
+                                kind: kind === "saved" ? "todo" : "saved",
+                                done: false,
+                                due: null,
+                              })
+                            }
+                          >
+                            Move to {kind === "saved" ? "To-dos" : "Saved"}
+                          </Button>
+                          <Button
+                            disabled={busy}
+                            onClick={() =>
+                              void save({ ...item, deleted: true })
+                            }
+                          >
+                            Remove
+                          </Button>
+                        </div>
+                      </details>
+                    </div>
+                  </article>
+                ))}
+            </section>
+          ))}
           {kind === "todo" && (
-            <div>
+            <details>
+              <summary className="text-body-sm">Reminder settings</summary>
               <label>
                 <input
                   type="checkbox"
@@ -330,140 +575,8 @@ export const apply: PluginModule["apply"] = (ctx) => {
                   Tasks are saved. Reminders: {state.reminderError}
                 </p>
               )}
-            </div>
+            </details>
           )}
-          <div style={row}>
-            <Button
-              disabled={
-                busy ||
-                !state.items.some(
-                  (item) =>
-                    item.kind === kind && (kind === "saved" || item.done),
-                )
-              }
-              onClick={() => setClear(true)}
-            >
-              {kind === "saved" ? "Clear Saved" : "Clear done tasks"}
-            </Button>
-          </div>
-          {clear && (
-            <fieldset aria-label="Confirm removal">
-              <p>Remove these items on all your devices?</p>
-              <div style={row}>
-                <Button disabled={busy} onClick={() => setClear(false)}>
-                  Cancel
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() => {
-                    setClearing(true);
-                    void (async () => {
-                      for (const item of state.items.filter(
-                        (item) =>
-                          item.kind === kind && (kind === "saved" || item.done),
-                      ))
-                        if (!(await save({ ...item, deleted: true }))) break;
-                      setClearing(false);
-                      setClear(false);
-                    })();
-                  }}
-                >
-                  Remove items
-                </Button>
-              </div>
-            </fieldset>
-          )}
-          {!items.length && (
-            <p>
-              {state.loaded
-                ? `No ${title.toLowerCase()} here.`
-                : state.error
-                  ? "Refresh to try again."
-                  : "Loading your list…"}
-            </p>
-          )}
-          {items.map((item) => (
-            <article
-              key={item.id}
-              style={{
-                display: "grid",
-                gap: "var(--space-2)",
-                borderBottom: "1px solid var(--border-subtle)",
-                paddingBlock: "var(--space-3)",
-                overflowWrap: "anywhere",
-              }}
-            >
-              <span>{item.text}</span>
-              <small>
-                {item.done
-                  ? "Done"
-                  : item.due
-                    ? `Due ${new Date(item.due * 1000).toLocaleString()}`
-                    : "No reminder"}
-              </small>
-              <div style={row}>
-                {item.target && (
-                  <Button
-                    onClick={() => {
-                      const connection = ctx.relay.snapshot();
-                      const scope =
-                        connection.scope && splitPartition(connection.scope);
-                      if (!scope || !item.target) return;
-                      void ctx.navigation
-                        .open({
-                          version: 1,
-                          kind: "conversation",
-                          scope,
-                          channelId: item.target.channelId,
-                          messageId: item.target.eventId,
-                        })
-                        .then((result) => {
-                          if (result.status === "failed")
-                            setError(
-                              "This message cannot open. The saved item is still here.",
-                            );
-                        })
-                        .catch((error) => setError(String(error)));
-                    }}
-                  >
-                    Open message
-                  </Button>
-                )}
-                {kind === "todo" && (
-                  <>
-                    <Button
-                      disabled={busy}
-                      onClick={() => void save({ ...item, done: !item.done })}
-                    >
-                      {item.done ? "Reopen" : "Mark done"}
-                    </Button>
-                    <Button disabled={busy} onClick={() => edit(item)}>
-                      Edit
-                    </Button>
-                  </>
-                )}
-                <Button
-                  disabled={busy}
-                  onClick={() =>
-                    void save({
-                      ...item,
-                      kind: kind === "saved" ? "todo" : "saved",
-                      done: false,
-                      due: null,
-                    })
-                  }
-                >
-                  Move to {kind === "saved" ? "To-dos" : "Saved"}
-                </Button>
-                <Button
-                  disabled={busy}
-                  onClick={() => void save({ ...item, deleted: true })}
-                >
-                  Remove
-                </Button>
-              </div>
-            </article>
-          ))}
         </div>
       );
     }

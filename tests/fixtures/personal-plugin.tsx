@@ -19,7 +19,20 @@ const connection = {
   session: {},
 };
 let items = [
-  { ...newItem("todo", "Review the plugin"), revision: 1, created: 1 },
+  {
+    ...newItem(
+      "todo",
+      "**Review the plugin**\n\nCheck the [release notes](https://example.org/notes) before the next update.",
+    ),
+    revision: 1,
+    created: 1,
+  },
+  {
+    ...newItem("todo", "Prepare the weekend project"),
+    done: true,
+    revision: 1,
+    created: 3,
+  },
   { ...newItem("saved", "Weekend project notes"), revision: 1, created: 2 },
 ];
 const pages: { id: string; title: string; component: React.ComponentType }[] =
