@@ -1,0 +1,7 @@
+{
+  "id": "buzz.personal-lists",
+  "name": "Saved and To-dos",
+  "apiVersion": 1,
+  "description": "Save messages and manage your own tasks across devices.",
+  "discovery": { "category": "productivity", "tags": ["tasks"] }
+}

@@ -6,6 +6,12 @@ current app context and available tools to check anything it does not cover.
 
 ## Start with useful work
 
+This personal fork has **Saved** and **To-dos** pages on desktop. Use a message
+menu to save it or make a task. Tasks can have a reminder and can be marked done.
+The custom build syncs these lists for one account across devices. Mac reminders
+can run after Quit, using the last sync on that Mac. A closed app does not get
+new changes from another device. See [Personal lists](personal-lists.md) for setup.
+
 Buzz is an open-source app for thinking, asking questions, and getting work done
 with agents, alone or with other people. Start with a real task: work through an
 idea, draft something, answer a question, or make a plan. Customizing an agent is

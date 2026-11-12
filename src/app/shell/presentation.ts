@@ -4,6 +4,7 @@ import {
   BrowserIcon,
   ChatsCircleIcon,
   NoteIcon,
+  ListChecksIcon,
   GearIcon,
   LightningIcon,
   RobotIcon,
@@ -53,6 +54,8 @@ export function orderPages(
 }
 
 const bundledIcons = new Map<string, typeof BrowserIcon>([
+  ["buzz.personal-lists/saved", NoteIcon],
+  ["buzz.personal-lists/todos", ListChecksIcon],
   ["buzz.inbox/inbox", BellIcon],
   ["buzz.drafts-and-sent/drafts-sent", SendIcon],
   ["buzz.reminders/reminders", AlarmIcon],

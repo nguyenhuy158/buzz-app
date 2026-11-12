@@ -78,6 +78,7 @@ mod reshow;
 mod notifications;
 mod os_idle;
 mod packaged_plugins;
+mod personal_lists;
 mod plugin_url;
 mod repositories_folder;
 mod window_controls;
@@ -880,6 +881,9 @@ fn commands<R: tauri::Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Sen
         decisions::decide,
         title_bar_double_click,
         notification_show,
+        personal_lists::personal_lists_request,
+        #[cfg(target_os = "macos")]
+        personal_lists::macos::personal_lists_schedule,
         #[cfg(target_os = "macos")]
         notifications::macos::notification_permission_state,
         #[cfg(target_os = "macos")]

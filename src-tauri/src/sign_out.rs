@@ -902,7 +902,13 @@ pub(crate) async fn sign_out<R: tauri::Runtime>(
         remove_agents,
     };
     // Agents run as plugin host processes, which stop when Buzz exits.
-    let shutdown = || async { Ok(()) };
+    let shutdown = || async {
+        #[cfg(target_os = "macos")]
+        tauri::async_runtime::spawn_blocking(crate::personal_lists::macos::close)
+            .await
+            .map_err(|_| "Could not stop reminders".to_owned())??;
+        Ok(())
+    };
     let revoke = || async {
         match app.try_state::<crate::credential_service::CredentialService>() {
             Some(credentials) if !pairings_allow(&credentials.clear_pairings().await, wipe) => Err(
