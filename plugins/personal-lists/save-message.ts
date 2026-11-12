@@ -31,7 +31,7 @@ export async function saveMessage(
   const existing = list
     .snapshot()
     .items.find((item) => item.target?.eventId === message.id);
-  if (existing?.kind === kind) return;
+  if (existing?.kind === kind) return false;
   await list.save(
     existing
       ? { ...existing, kind, due: null, done: false }
@@ -47,4 +47,5 @@ export async function saveMessage(
           },
         },
   );
+  return true;
 }

@@ -1437,3 +1437,5 @@ occurs. It contains operation metadata, with no draft text or secrets. See
 The optional Personal Lists plugin adds Save for later and Add to To-dos buttons to the message hover toolbar. Click once to save the message without leaving the chat.
 
 A toast shows Saving while the request runs, then Saved or Added to To-dos after sync confirms it. It closes after three seconds. A failed save keeps the error and Try again visible. The chat layout does not move.
+
+After the toolbar updates, a saved action stays in place with a green check. Clicking it again does not add a second item. Use Saved or To-dos to remove the item.

@@ -513,126 +513,175 @@ export const apply: PluginModule["apply"] = (ctx) => {
         );
       },
     });
-    ctx.conversation.registerMessageAction({
-      id: kind,
-      title: kind === "saved" ? "Save for later" : "Add to To-dos",
-      placement: "toolbar",
-      icon: function ActionIcon() {
-        return (
-          <span
-            aria-hidden="true"
-            style={{
-              display: "inline-block",
-              width: "1rem",
-              height: "1rem",
-              backgroundColor: "currentColor",
-              mask: `url("data:image/svg+xml,${encodeURIComponent(kind === "saved" ? bookmarkIconSvg : todoIconSvg)}") center / contain no-repeat`,
-            }}
-          />
-        );
-      },
-      matches: (message) => /^[a-f0-9]{64}$/.test(message.id),
-      component: function Action({ message, session, close }) {
-        const [error, setError] = React.useState("");
-        const [busy, setBusy] = React.useState(true);
-        const [saved, setSaved] = React.useState(false);
-        const started = React.useRef(false);
-        const notice = React.useRef<HTMLDivElement>(null);
-        React.useLayoutEffect(() => {
-          const element = notice.current;
-          element?.showPopover();
-          return () => {
-            if (element?.matches(":popover-open")) element.hidePopover();
-          };
-        }, []);
-        const save = () => {
-          const list = currentStore();
-          if (!list || ctx.relay.snapshot().session !== session) {
-            setError("Connect before saving.");
-            setBusy(false);
-            return;
-          }
-          setBusy(true);
-          setError("");
-          void saveMessage(
-            list,
-            kind,
-            message,
-            () =>
-              currentStore() === list &&
-              ctx.relay.snapshot().session === session,
-          )
-            .then(() => setSaved(true))
-            .catch((error) =>
-              setError(error instanceof Error ? error.message : String(error)),
+    for (const active of [false, true])
+      ctx.conversation.registerMessageAction({
+        id: active ? `${kind}-active` : kind,
+        title: active
+          ? kind === "saved"
+            ? "Saved"
+            : "Added to To-dos"
+          : kind === "saved"
+            ? "Save for later"
+            : "Add to To-dos",
+        placement: "toolbar",
+        icon: function ActionIcon() {
+          if (active)
+            return (
+              <span
+                aria-hidden="true"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: "1.25rem",
+                  height: "1.25rem",
+                  borderRadius: "50%",
+                  backgroundColor: "var(--text-success)",
+                  color: "var(--surface-base)",
+                }}
+              >
+                ✓
+              </span>
+            );
+          return (
+            <span
+              aria-hidden="true"
+              style={{
+                display: "inline-block",
+                width: "1rem",
+                height: "1rem",
+                backgroundColor: "currentColor",
+                mask: `url("data:image/svg+xml,${encodeURIComponent(kind === "saved" ? bookmarkIconSvg : todoIconSvg)}") center / contain no-repeat`,
+              }}
+            />
+          );
+        },
+        matches: (message, session) =>
+          /^[a-f0-9]{64}$/.test(message.id) &&
+          active ===
+            Boolean(
+              ctx.relay.snapshot().session === session &&
+                currentStore()
+                  ?.snapshot()
+                  .items.some(
+                    (item) =>
+                      item.kind === kind && item.target?.eventId === message.id,
+                  ),
+            ),
+        component: function Action({ message, session, close }) {
+          const [error, setError] = React.useState("");
+          const [busy, setBusy] = React.useState(true);
+          const [saved, setSaved] = React.useState(false);
+          const started = React.useRef(false);
+          const notice = React.useRef<HTMLDivElement>(null);
+          React.useLayoutEffect(() => {
+            const element = notice.current;
+            element?.showPopover();
+            return () => {
+              if (element?.matches(":popover-open")) element.hidePopover();
+            };
+          }, []);
+          const save = () => {
+            const list = currentStore();
+            if (!list || ctx.relay.snapshot().session !== session) {
+              setError("Connect before saving.");
+              setBusy(false);
+              return;
+            }
+            setBusy(true);
+            setError("");
+            void saveMessage(
+              list,
+              kind,
+              message,
+              () =>
+                currentStore() === list &&
+                ctx.relay.snapshot().session === session,
             )
-            .finally(() => setBusy(false));
-        };
-        React.useEffect(() => {
-          if (started.current) return;
-          started.current = true;
-          save();
-        }, []);
-        React.useEffect(() => {
-          if (!saved) return;
-          const timer = setTimeout(close, 3000);
-          return () => clearTimeout(timer);
-        }, [saved, close]);
-        return (
-          <div
-            ref={notice}
-            popover="manual"
-            role={error ? "alert" : "status"}
-            data-buzz-ui=""
-            data-type={error ? "error" : saved ? "success" : "info"}
-            className="buzz-toast floating-surface"
-            style={{
-              position: "fixed",
-              inset: "var(--space-6) var(--space-6) auto auto",
-              margin: 0,
-              width: "min(22rem, calc(100vw - 2 * var(--space-6)))",
-            }}
-          >
-            <div className="buzz-toast-heading">
-              <div className="buzz-toast-message">
-                <div className="buzz-toast-title text-label-sm">
-                  {error
-                    ? "Could not save"
-                    : busy
-                      ? "Saving…"
-                      : kind === "saved"
-                        ? "Saved"
-                        : "Added to To-dos"}
+              .then((changed) => {
+                if (changed) setSaved(true);
+                else close();
+              })
+              .catch((error) =>
+                setError(
+                  error instanceof Error ? error.message : String(error),
+                ),
+              )
+              .finally(() => setBusy(false));
+          };
+          React.useEffect(() => {
+            if (started.current) return;
+            started.current = true;
+            save();
+          }, []);
+          React.useEffect(() => {
+            if (!saved) return;
+            const timer = setTimeout(close, 3000);
+            return () => clearTimeout(timer);
+          }, [saved, close]);
+          return (
+            <div
+              ref={notice}
+              popover="manual"
+              role={error ? "alert" : "status"}
+              data-buzz-ui=""
+              data-type={error ? "error" : saved ? "success" : "info"}
+              className="buzz-toast floating-surface"
+              style={{
+                position: "fixed",
+                top: "var(--space-6)",
+                right: "var(--space-6)",
+                bottom: "auto",
+                left: "auto",
+                height: "fit-content",
+                minHeight: 0,
+                maxHeight: "min(14rem, calc(100dvh - 2 * var(--space-6)))",
+                overflowY: "auto",
+                display: "block",
+                margin: 0,
+                width: "min(22rem, calc(100vw - 2 * var(--space-6)))",
+              }}
+            >
+              <div className="buzz-toast-heading">
+                <div className="buzz-toast-message">
+                  <div className="buzz-toast-title text-label-sm">
+                    {error
+                      ? "Could not save"
+                      : busy
+                        ? "Saving…"
+                        : kind === "saved"
+                          ? "Saved"
+                          : "Added to To-dos"}
+                  </div>
+                  {error && <p className="text-body-sm">{error}</p>}
                 </div>
-                {error && <p className="text-body-sm">{error}</p>}
+                <div className="buzz-toast-dismiss">
+                  <Button
+                    data-variant="ghost"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      close();
+                    }}
+                  >
+                    Close
+                  </Button>
+                </div>
               </div>
-              <div className="buzz-toast-dismiss">
-                <Button
-                  data-variant="ghost"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    close();
-                  }}
-                >
-                  Close
-                </Button>
-              </div>
+              {error && (
+                <div className="buzz-toast-actions">
+                  <Button
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      save();
+                    }}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              )}
             </div>
-            {error && (
-              <div className="buzz-toast-actions">
-                <Button
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    save();
-                  }}
-                >
-                  Try again
-                </Button>
-              </div>
-            )}
-          </div>
-        );
-      },
-    });
+          );
+        },
+      });
   }
 };

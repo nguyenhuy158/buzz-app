@@ -96,7 +96,14 @@ function Fixture() {
         <p>Sample message for toolbar checks</p>
         <fieldset aria-label="Message actions">
           {actions
-            .filter((item) => item.placement === "toolbar")
+            .filter(
+              (item) =>
+                item.placement === "toolbar" &&
+                item.matches(
+                  { id: "b".repeat(64) } as never,
+                  connection.session as never,
+                ),
+            )
             .map((item) => (
               <IconButton
                 key={item.id}
