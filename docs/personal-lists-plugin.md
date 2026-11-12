@@ -10,6 +10,8 @@ From the repo root:
 BUZZ_PERSONAL_LISTS_URL=https://your-worker.example bin/node plugins/personal-lists/build.mjs
 ```
 
+The pages appear in the main app navigation. The plugin uses `topbar`, the name used by Buzz 0.7.0-preview.250.1; newer hosts map it to their app dock.
+
 Open Buzz → Settings → Plugins. Load `dist-plugins/personal-lists` and enable Personal Lists. Use the same owner account as the Worker. The host must have `prepareRemoteAgentAuthorization`, `request`, and message actions. A matching command in the app binary alone does not prove all plugin APIs work; test the installed app.
 
 The plugin uses one temporary key in RAM for each account/community session. Buzz signs its owner proof. The Worker verifies this proof and each signed HTTP request. No main account key leaves Buzz. Restarting the plugin creates a new temporary key. The old custom app can still use owner-signed requests. D1 data and table names do not change.
