@@ -1,5 +1,17 @@
 # Contributor instructions for AI agents
 
+## Language for this fork
+
+Use A2-level English when working in this repository with Codex CLI or Claude Code.
+This rule applies only to this repository, even when the user writes in Vietnamese.
+Use short sentences, common words, and one clear point per sentence.
+Use this style for replies, plans, new docs, commit messages, issues, and PR text.
+Explain needed technical terms in simple words. Keep commands, paths, code names,
+and quoted errors exact. Do not change old text or app text just to follow this rule.
+Use another language or level when the user asks for it.
+
+## Contribution workflow
+
 Read [the contribution workflow](docs/contributing.md) for commands and validation.
 For interactive product work, default to edit → human tries the running app →
 adjust in the agreed worktree. Do not gate each feedback round on E2E, native
