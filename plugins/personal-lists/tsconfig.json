@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "jsx": "preserve", "allowJs": true },
+  "include": [
+    "./index.tsx",
+    "./auth.ts",
+    "./save-message.ts",
+    "../../src/**/*.d.ts"
+  ]
+}

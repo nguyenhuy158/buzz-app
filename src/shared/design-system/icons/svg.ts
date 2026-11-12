@@ -27,3 +27,6 @@ export const pickerIcons = {
   flag: flag,
   asterisk: asterisk,
 };
+
+export { default as bookmarkIconSvg } from "@tabler/icons/outline/bookmark.svg?raw";
+export { default as todoIconSvg } from "@tabler/icons/outline/circle-check.svg?raw";
